@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  password  String
+  name      String
+  title            String?
+  address          String?
+  phone            String?
+  invoiceTemplate  String    @default("emerald")
+  createdAt DateTime  @default(now())
+  invoices  Invoice[]
+  clients   Client[]
+}
+
+model Client {
+  id        Int       @id @default(autoincrement())
+  name      String
+  contact   String?
+  address   String?
+  phone     String?
+  email     String?
+  ein       String?
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices  Invoice[]
+
+  @@index([userId])
+}
+
+model Invoice {
+  id           Int           @id @default(autoincrement())
+  number       String        @unique
+  status       InvoiceStatus @default(DUE)
+  issueDate    DateTime
+  dueDate      DateTime?
+  currency     String        @default("USD")
+  subtotal     Float         @default(0)
+  discountPct  Float         @default(0)
+  discountAmt  Float         @default(0)
+  taxPct       Float         @default(0)
+  taxAmt       Float         @default(0)
+  total        Float         @default(0)
+  paymentInfo  String?
+  paymentTerms String?
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  userId       Int
+  user         User          @relation(fields: [userId], references: [id])
+  clientId     Int
+  client       Client        @relation(fields: [clientId], references: [id])
+  items        InvoiceItem[]
+}
+
+model InvoiceItem {
+  id          Int     @id @default(autoincrement())
+  description String
+  quantity    Float
+  rate        Float
+  amount      Float
+  invoiceId   Int
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+enum InvoiceStatus {
+  DUE
+  PAID
+  OVERDUE
+}
