@@ -15,6 +15,7 @@ model User {
   address          String?
   phone            String?
   invoiceTemplate  String    @default("emerald")
+  invoicePrefix    String?   @unique
   createdAt DateTime  @default(now())
   invoices  Invoice[]
   clients   Client[]

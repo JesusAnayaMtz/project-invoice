@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { CreateInvoiceDto, UpdateInvoiceDto } from './invoices.dto';
 import { PrismaService } from 'prisma.service';
+import { generateUniquePrefix } from '../common/invoice-prefix';
 
 @Injectable()
 export class InvoicesService {
@@ -15,14 +16,31 @@ export class InvoicesService {
   }
 
   async nextNumber(userId: number): Promise<string> {
+    const prefix = await this.getUserInvoicePrefix(userId);
+    const startsWith = `${prefix}-`;
     const last = await this.prisma.invoice.findFirst({
-      where: { userId, number: { startsWith: 'FT-' } },
+      where: { userId, number: { startsWith } },
       orderBy: { id: 'desc' },
       select: { number: true },
     });
-    const lastN = last ? parseInt(last.number.replace('FT-', ''), 10) : 0;
+    const lastN = last ? parseInt(last.number.replace(startsWith, ''), 10) : 0;
     const next = Number.isFinite(lastN) ? lastN + 1 : 1;
-    return `FT-${String(next).padStart(3, '0')}`;
+    return `${prefix}-${String(next).padStart(3, '0')}`;
+  }
+
+  private async getUserInvoicePrefix(userId: number): Promise<string> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, invoicePrefix: true },
+    });
+    if (!user) throw new ForbiddenException('Usuario no encontrado');
+    if (user.invoicePrefix) return user.invoicePrefix;
+    const prefix = await generateUniquePrefix(this.prisma, user.name);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { invoicePrefix: prefix },
+    });
+    return prefix;
   }
 
   findAll(userId: number) {

@@ -12,6 +12,7 @@ import {
   UpdateProfileDto,
 } from './auth.dto';
 import { PrismaService } from 'prisma.service';
+import { generateUniquePrefix } from '../common/invoice-prefix';
 
 @Injectable()
 export class AuthService {
@@ -23,10 +24,31 @@ export class AuthService {
     });
     if (exists) throw new ConflictException('Email ya registrado');
     const hash = await bcrypt.hash(dto.password, 10);
+    const invoicePrefix = await generateUniquePrefix(this.prisma, dto.name);
     const user = await this.prisma.user.create({
-      data: { email: dto.email, password: hash, name: dto.name },
+      data: {
+        email: dto.email,
+        password: hash,
+        name: dto.name,
+        invoicePrefix,
+      },
     });
     return this.signToken(user.id, user.email, user.name);
+  }
+
+  async ensureInvoicePrefix(userId: number): Promise<string> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, invoicePrefix: true },
+    });
+    if (!user) throw new UnauthorizedException();
+    if (user.invoicePrefix) return user.invoicePrefix;
+    const prefix = await generateUniquePrefix(this.prisma, user.name);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { invoicePrefix: prefix },
+    });
+    return prefix;
   }
 
   async login(dto: LoginDto) {
